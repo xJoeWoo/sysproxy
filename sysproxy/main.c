@@ -28,6 +28,10 @@ void usage(LPCTSTR binName)
 	_tprintf(_T("             bypass list is a string like: localhost;127.*;10.* without trailing semicolon.\n"));
 	_tprintf(_T("       %s pac <pac-url>\n"), binName);
 	_tprintf(_T("       %s off\n"), binName);
+	_tprintf(_T("       %s query\n"), binName);
+	_tprintf(_T("       %s set <flags> [<proxy-server> [<bypass-list> [<pac-url>]]]\n"), binName);
+	_tprintf(_T("             <flags> is refer to INTERNET_PER_CONN_FLAGS.\n"));
+	_tprintf(_T("             \"-\" as a placeholder to keep original value.\n"));
 
 	exit(INVALID_FORMAT);
 }
@@ -165,6 +169,42 @@ free_calloc:
 	return ret;
 }
 
+int query(INTERNET_PER_CONN_OPTION_LIST* options)
+{
+	DWORD dwLen = sizeof(INTERNET_PER_CONN_OPTION_LIST);
+	options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS;
+	options->pOptions[1].dwOption = INTERNET_PER_CONN_PROXY_SERVER;
+	options->pOptions[2].dwOption = INTERNET_PER_CONN_PROXY_BYPASS;
+	options->pOptions[3].dwOption = INTERNET_PER_CONN_AUTOCONFIG_URL;
+
+	if (!InternetQueryOption(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION, options, &dwLen))
+	{
+		reportWindowsError(_T("query options"));
+		return SYSCALL_FAILED;
+	}
+
+	_tprintf(_T("flags=%d\nproxy-server=%s\nbypass-list=%s\npac-url=%s\n"),
+	                options->pOptions[0].Value.dwValue,
+	                options->pOptions[1].Value.pszValue,
+	                options->pOptions[2].Value.pszValue,
+	                options->pOptions[3].Value.pszValue);
+
+	for (DWORD i = 1; i < options->dwOptionCount; ++i)
+	{
+		if (options->pOptions[i].Value.pszValue == NULL)
+		{
+			continue;
+		}
+		GlobalFree(options->pOptions[i].Value.pszValue);
+		options->pOptions[i].Value.pszValue = NULL;
+	}
+
+	free(options->pOptions);
+	options->pOptions = NULL;
+
+	return RET_NO_ERROR;
+}
+
 
 int _tmain(int argc, LPTSTR argv[])
 {
@@ -182,7 +222,46 @@ int _tmain(int argc, LPTSTR argv[])
 	INTERNET_PER_CONN_OPTION_LIST options;
 	memset(&options, 0, sizeof(INTERNET_PER_CONN_OPTION_LIST));
 
-	if (_tcscmp(argv[1], _T("off")) == 0)
+	if (_tcscmp(argv[1], _T("query")) == 0)
+	{
+		initialize(&options, 4);
+		return query(&options);
+	}
+	else if (_tcscmp(argv[1], _T("set")) == 0)
+	{
+		if (argc > 6 || argc < 3)
+		{
+			usage(argv[0]);
+		}
+
+		DWORD flags = _ttoi(argv[2]);
+		if (flags > 0x0f || flags < 1)
+		{
+			usage(argv[0]);
+		}
+
+		DWORD count = argc - 2, argIdx = 2, optIdx = 1;
+		DWORD opts[] = {0, 0, INTERNET_PER_CONN_FLAGS, INTERNET_PER_CONN_PROXY_SERVER , INTERNET_PER_CONN_PROXY_BYPASS, INTERNET_PER_CONN_AUTOCONFIG_URL};
+
+		initialize(&options, count);
+
+		options.pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS;
+		options.pOptions[0].Value.dwValue = flags;
+
+		while (argIdx++ <= count)
+		{
+			if (argv[argIdx][0] == _T('-'))
+			{
+				continue;
+			}
+			options.pOptions[optIdx].dwOption = opts[argIdx];
+			options.pOptions[optIdx].Value.pszValue = argv[argIdx];
+			++optIdx;
+		}
+
+		options.dwOptionCount = optIdx;
+	}
+	else if (_tcscmp(argv[1], _T("off")) == 0)
 	{
 		initialize(&options, 1);
 
