@@ -172,15 +172,26 @@ free_calloc:
 int query(INTERNET_PER_CONN_OPTION_LIST* options)
 {
 	DWORD dwLen = sizeof(INTERNET_PER_CONN_OPTION_LIST);
-	options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS;
+
+	// On Windows 7 or above (IE8+), query with INTERNET_PER_CONN_FLAGS_UI is recommanded.
+	// Need to query again with INTERNET_PER_CONN_FLAGS if INTERNET_PER_CONN_FLAGS_UI query failed to compatible with older version of Windows.
+	// See https://msdn.microsoft.com/en-us/library/windows/desktop/aa385145(v=vs.85).aspx
+	options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS_UI;
+
 	options->pOptions[1].dwOption = INTERNET_PER_CONN_PROXY_SERVER;
 	options->pOptions[2].dwOption = INTERNET_PER_CONN_PROXY_BYPASS;
 	options->pOptions[3].dwOption = INTERNET_PER_CONN_AUTOCONFIG_URL;
 
 	if (!InternetQueryOption(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION, options, &dwLen))
 	{
-		reportWindowsError(_T("query options"));
-		return SYSCALL_FAILED;
+		// Set option to INTERNET_PER_CONN_FLAGS and try again.
+		options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS;
+
+		if (!InternetQueryOption(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION, options, &dwLen))
+		{
+			reportWindowsError(_T("query options"));
+			return SYSCALL_FAILED;
+		}
 	}
 
 	_tprintf(_T("flags=%d\nproxy-server=%s\nbypass-list=%s\npac-url=%s\n"),
@@ -237,6 +248,7 @@ int _tmain(int argc, LPTSTR argv[])
 		DWORD flags = _ttoi(argv[2]);
 		if (flags > 0x0f || flags < 1)
 		{
+			_tprintf(_T("Error: flags is not accepted\n"));
 			usage(argv[0]);
 		}
 
