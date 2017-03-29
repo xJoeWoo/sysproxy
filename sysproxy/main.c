@@ -173,8 +173,7 @@ int query(INTERNET_PER_CONN_OPTION_LIST* options)
 {
 	DWORD dwLen = sizeof(INTERNET_PER_CONN_OPTION_LIST);
 
-	// On Windows 7 or above (IE8+), query with INTERNET_PER_CONN_FLAGS_UI is recommanded.
-	// Need to query again with INTERNET_PER_CONN_FLAGS if INTERNET_PER_CONN_FLAGS_UI query failed to compatible with older version of Windows.
+	// On Windows 7 or above (IE8+), query with INTERNET_PER_CONN_FLAGS_UI is recommended.
 	// See https://msdn.microsoft.com/en-us/library/windows/desktop/aa385145(v=vs.85).aspx
 	options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS_UI;
 
@@ -184,7 +183,7 @@ int query(INTERNET_PER_CONN_OPTION_LIST* options)
 
 	if (!InternetQueryOption(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION, options, &dwLen))
 	{
-		// Set option to INTERNET_PER_CONN_FLAGS and try again.
+		// Set option to INTERNET_PER_CONN_FLAGS and try again to compatible with older versions of Windows.
 		options->pOptions[0].dwOption = INTERNET_PER_CONN_FLAGS;
 
 		if (!InternetQueryOption(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION, options, &dwLen))
